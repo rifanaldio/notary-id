@@ -1,11 +1,17 @@
 import { configureStore } from '@reduxjs/toolkit';
 import uiReducer from './uiSlice';
 import regionReducer from './regionSlice';
+import notaryReducer from './notarySlice';
+import authReducer from './authSlice';
+import consultationReducer from './consultationSlice';
 
 const store = configureStore({
   reducer: {
     ui: uiReducer,
-    region: regionReducer
+    region: regionReducer,
+    notary: notaryReducer,
+    auth: authReducer,
+    consultation: consultationReducer
   },
   devTools: true
 });

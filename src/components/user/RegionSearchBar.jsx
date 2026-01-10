@@ -12,7 +12,7 @@ import {
   setSelectedDistrict
 } from '../../store/regionSlice';
 
-const RegionSearchBar = ({ onSearch }) => {
+const RegionSearchBar = ({ onSearch, onLocationChange, isSearching }) => {
   const dispatch = useAppDispatch();
   const {
     provinces,
@@ -31,6 +31,26 @@ const RegionSearchBar = ({ onSearch }) => {
   const provinceRef = useRef(null);
   const regencyRef = useRef(null);
   const districtRef = useRef(null);
+  
+  // Track previous values untuk detect perubahan
+  const prevProvinceRef = useRef(null);
+  const prevRegencyRef = useRef(null);
+  const prevDistrictRef = useRef(null);
+  
+  // Detect perubahan di form
+  useEffect(() => {
+    if (
+      (prevProvinceRef.current && selectedProvince?.id !== prevProvinceRef.current?.id) ||
+      (prevRegencyRef.current && selectedRegency?.id !== prevRegencyRef.current?.id) ||
+      (prevDistrictRef.current?.id !== selectedDistrict?.id)
+    ) {
+      onLocationChange?.();
+    }
+    
+    prevProvinceRef.current = selectedProvince;
+    prevRegencyRef.current = selectedRegency;
+    prevDistrictRef.current = selectedDistrict;
+  }, [selectedProvince?.id, selectedRegency?.id, selectedDistrict?.id, onLocationChange]);
 
   // Fetch provinces on mount
   useEffect(() => {
@@ -76,16 +96,19 @@ const RegionSearchBar = ({ onSearch }) => {
   const handleProvinceSelect = (province) => {
     dispatch(setSelectedProvince(province));
     setIsProvinceOpen(false);
+    onLocationChange?.(); // Reset kategori ketika province berubah
   };
 
   const handleRegencySelect = (regency) => {
     dispatch(setSelectedRegency(regency));
     setIsRegencyOpen(false);
+    onLocationChange?.(); // Reset kategori ketika regency berubah
   };
 
   const handleDistrictSelect = (district) => {
     dispatch(setSelectedDistrict(district));
     setIsDistrictOpen(false);
+    onLocationChange?.(); // Reset kategori ketika district berubah
   };
 
   const handleSearch = () => {
@@ -106,9 +129,9 @@ const RegionSearchBar = ({ onSearch }) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col lg:flex-row gap-3">
+      <div className="flex flex-col gap-3">
         {/* Provinsi Dropdown */}
-        <div className="flex-1 relative" ref={provinceRef}>
+        <div className="w-full relative" ref={provinceRef}>
           <label className="block text-sm font-semibold text-brand-dark dark:text-brand-light mb-2">
             Provinsi
           </label>
@@ -163,7 +186,7 @@ const RegionSearchBar = ({ onSearch }) => {
         </div>
 
         {/* Kota/Kabupaten Dropdown */}
-        <div className="flex-1 relative" ref={regencyRef}>
+        <div className="w-full relative" ref={regencyRef}>
           <label className="block text-sm font-semibold text-brand-dark dark:text-brand-light mb-2">
             Kota/Kabupaten <span className="text-status-danger">*</span>
           </label>
@@ -220,7 +243,7 @@ const RegionSearchBar = ({ onSearch }) => {
         </div>
 
         {/* Kecamatan Dropdown (Optional) */}
-        <div className="flex-1 relative" ref={districtRef}>
+        <div className="w-full relative" ref={districtRef}>
           <label className="block text-sm font-semibold text-brand-dark dark:text-brand-light mb-2">
             Kecamatan <span className="text-xs text-brand-muted">(Opsional)</span>
           </label>
@@ -281,11 +304,20 @@ const RegionSearchBar = ({ onSearch }) => {
       <button
         type="button"
         onClick={handleSearch}
-        disabled={isSearchDisabled}
+        disabled={isSearchDisabled || isSearching}
         className="w-full lg:w-auto lg:px-8 flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-white font-semibold shadow-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition"
       >
-        <Search size={18} />
-        Cari Notaris
+        {isSearching ? (
+          <>
+            <Loader2 size={18} className="animate-spin" />
+            Mencari...
+          </>
+        ) : (
+          <>
+            <Search size={18} />
+            Cari Notaris
+          </>
+        )}
       </button>
 
       {/* Selected Location Display */}
@@ -310,11 +342,15 @@ const RegionSearchBar = ({ onSearch }) => {
 };
 
 RegionSearchBar.propTypes = {
-  onSearch: PropTypes.func
+  onSearch: PropTypes.func,
+  onLocationChange: PropTypes.func,
+  isSearching: PropTypes.bool
 };
 
 RegionSearchBar.defaultProps = {
-  onSearch: undefined
+  onSearch: undefined,
+  onLocationChange: undefined,
+  isSearching: false
 };
 
 export default RegionSearchBar;
