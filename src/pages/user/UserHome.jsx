@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileSignature, ShieldCheck, Users, Building2, Stamp, MapPin, Phone, CheckCircle, FileText, Shield, Scale, Briefcase, Handshake, FileCheck, Gavel, Landmark, ChevronDown, ChevronUp, Star, Mail, ThumbsUp, MessageCircle, Loader2, ArrowLeft } from 'lucide-react';
+import { FileSignature, ShieldCheck, Users, Building2, Stamp, MapPin, Phone, CheckCircle, FileText, Shield, Scale, Briefcase, Handshake, FileCheck, Gavel, Landmark, ChevronDown, ChevronUp, Star, Mail, ThumbsUp, MessageCircle, Loader2, ArrowLeft, Navigation } from 'lucide-react';
 import SearchBar from '../../components/user/SearchBar';
 import RegionSearchBar from '../../components/user/RegionSearchBar';
 import CategoryCard from '../../components/user/CategoryCard';
@@ -14,7 +14,7 @@ import { searchNotaries, clearSearch, checkCategoryAvailability } from '../../st
 import { addConsultation } from '../../store/consultationSlice';
 import LoginModal from '../../components/user/LoginModal';
 import SuccessModal from '../../components/user/SuccessModal';
-import waveSvg from '../../assets/waves.svg';
+import AlertModal from '../../components/user/AlertModal';
 
 const categories = [
   {
@@ -83,6 +83,7 @@ const UserHome = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [isContentExpanded, setIsContentExpanded] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null); // Store selected location setelah button diklik
@@ -97,11 +98,111 @@ const UserHome = () => {
   const [paymentTotal, setPaymentTotal] = useState(0); // Store total payment amount
   const [showSuccessModal, setShowSuccessModal] = useState(false); // State untuk success modal
   const [successMessage, setSuccessMessage] = useState(''); // Store success message
-  
+
   const { filteredNotaries, searchParams, notaries } = useAppSelector((state) => state.notary);
   const { selectedProvince, selectedRegency, selectedDistrict } = useAppSelector((state) => state.region);
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
+  const [alertModal, setAlertModal] = useState({ isOpen: false, type: 'info', title: '', message: '' });
 
+  // Show alert modal
+  const showAlert = (type, title, message) => {
+    setAlertModal({ isOpen: true, type, title, message });
+  };
+
+  // Handle geolocation
+  const handleGetCurrentLocation = async () => {
+    if (!navigator.geolocation) {
+      showAlert(
+        'error',
+        'Geolocation Tidak Didukung',
+        'Browser Anda tidak mendukung fitur geolocation. Silakan gunakan form pencarian manual di bawah ini.'
+      );
+      return;
+    }
+
+    setIsGettingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+
+          // Get address from coordinates
+          const address = await reverseGeocode(latitude, longitude);
+
+          // Find matching region
+          const result = await findMatchingRegion(address);
+
+          if (!result || !result.success) {
+            showAlert(
+              'warning',
+              'Lokasi Tidak Ditemukan',
+              'Maaf, kami tidak dapat menemukan lokasi Anda di database. Silakan pilih provinsi, kota/kabupaten, dan kecamatan secara manual menggunakan form di bawah ini.'
+            );
+          } else if (result.province && !result.regency) {
+            showAlert(
+              'info',
+              'Provinsi Terdeteksi',
+              `Provinsi "${result.province.name}" berhasil terdeteksi. Silakan pilih kota/kabupaten dan kecamatan secara manual untuk hasil pencarian yang lebih akurat.`
+            );
+          } else if (result.province && result.regency) {
+            showAlert(
+              'success',
+              'Lokasi Berhasil Ditemukan',
+              `Lokasi Anda telah terdeteksi: ${result.province.name} → ${result.regency.name}${result.district ? ` → ${result.district.name}` : ''}. Form telah terisi otomatis, namun Anda tetap dapat mengubahnya jika diperlukan.`
+            );
+          }
+        } catch (error) {
+          console.error('Error getting location:', error);
+          showAlert(
+            'error',
+            'Gagal Mendapatkan Lokasi',
+            'Terjadi kesalahan saat memproses lokasi Anda. Silakan gunakan form pencarian manual di bawah ini untuk mencari notaris.'
+          );
+        } finally {
+          setIsGettingLocation(false);
+        }
+      },
+      (error) => {
+        setIsGettingLocation(false);
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            showAlert(
+              'warning',
+              'Izin Lokasi Ditolak',
+              'Akses lokasi Anda ditolak. Untuk menggunakan fitur ini, silakan aktifkan izin lokasi di pengaturan browser Anda, kemudian coba lagi. Atau gunakan form pencarian manual di bawah ini.'
+            );
+            break;
+          case error.POSITION_UNAVAILABLE:
+            showAlert(
+              'error',
+              'Lokasi Tidak Tersedia',
+              'Informasi lokasi Anda saat ini tidak tersedia. Pastikan GPS atau koneksi internet Anda aktif, atau gunakan form pencarian manual di bawah ini.'
+            );
+            break;
+          case error.TIMEOUT:
+            showAlert(
+              'error',
+              'Waktu Habis',
+              'Waktu permintaan lokasi telah habis. Silakan coba lagi atau gunakan form pencarian manual di bawah ini untuk mencari notaris.'
+            );
+            break;
+          default:
+            showAlert(
+              'error',
+              'Terjadi Kesalahan',
+              'Terjadi kesalahan saat mendapatkan lokasi Anda. Silakan gunakan form pencarian manual di bawah ini untuk mencari notaris.'
+            );
+            break;
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
 
   const handleSearch = (query) => {
     setSearchQuery(query);
@@ -112,23 +213,23 @@ const UserHome = () => {
   const handleRegionSearch = async (regionData) => {
     // Ambil data dari form provinsi, kota, dan kecamatan
     const { province, regency, district } = regionData;
-    
+
     // Reset state sebelum search
     setSelectedCategory(null);
     setShowCategoryGrid(true);
     dispatch(clearSearch());
-    
+
     // Tampilkan loading
     setIsSearching(true);
-    
+
     // Simulasi loading (bisa diganti dengan actual API call)
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    
+
     // Simpan lokasi yang dipilih setelah loading selesai
     // Ini akan membuat kategori muncul karena isLocationSelected akan true
     setSelectedLocation({ province, regency, district });
     setIsSearching(false);
-    
+
     // Kategori sekarang akan muncul karena selectedLocation sudah di-set
   };
 
@@ -147,14 +248,14 @@ const UserHome = () => {
     if (!selectedLocation || !selectedLocation.province || !selectedLocation.regency) {
       return; // Jangan lakukan apa-apa jika lokasi belum dipilih (belum klik button "Cari Notaris")
     }
-    
+
     const currentLocation = selectedLocation;
-    
+
     // Cek apakah kategori tersedia di lokasi tersebut
     if (!isCategoryAvailable(categoryTitle)) {
       return; // Jangan lakukan apa-apa jika kategori tidak tersedia
     }
-    
+
     // Jika kategori yang sama diklik lagi (deselect), kembali ke grid kategori
     if (selectedCategory === categoryTitle) {
       setSelectedCategory(null);
@@ -162,16 +263,16 @@ const UserHome = () => {
       dispatch(clearSearch());
       return;
     }
-    
+
     // Set kategori baru
     const newCategory = categoryTitle;
     setSelectedCategory(newCategory);
-    
+
     // Simpan lokasi jika belum ada di state
     if (!selectedLocation) {
       setSelectedLocation(currentLocation);
     }
-    
+
     // Lakukan pencarian berdasarkan lokasi yang sudah dipilih dan kategori yang diklik
     dispatch(searchNotaries({
       province: currentLocation.province,
@@ -179,7 +280,7 @@ const UserHome = () => {
       district: currentLocation.district || null,
       category: newCategory
     }));
-    
+
     // Ganti tampilan dari grid kategori ke list notaris
     setShowCategoryGrid(false);
   };
@@ -249,12 +350,12 @@ const UserHome = () => {
     const now = new Date();
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-    
+
     const dayName = days[now.getDay()];
     const day = now.getDate();
     const month = months[now.getMonth()];
     const formattedDate = `${dayName}, ${day} ${month}`;
-    
+
     const hours = now.getHours();
     const minutes = now.getMinutes();
     const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -285,7 +386,7 @@ const UserHome = () => {
     setNotaryToConsult(null);
     setSelectedNotary(null);
     setShowCategoryGrid(false);
-    
+
     // Tampilkan success modal
     setShowSuccessModal(true);
   };
@@ -315,7 +416,7 @@ const UserHome = () => {
   const handleBackFromDetail = () => {
     setSelectedNotary(null);
   };
-  
+
   // Cek apakah lokasi sudah dipilih (hanya dari selectedLocation, karena ini di-set setelah button diklik)
   // JANGAN gunakan Redux state langsung, harus melalui button "Cari Notaris" dulu
   const isLocationSelected = Boolean(
@@ -325,11 +426,11 @@ const UserHome = () => {
   // Function untuk check apakah kategori tersedia di lokasi yang dipilih
   const isCategoryAvailable = (categoryTitle) => {
     if (!isLocationSelected || !selectedLocation) return false; // Jika lokasi belum dipilih (belum klik button), kategori tidak available
-    
+
     if (!selectedLocation.province || !selectedLocation.regency) {
       return false;
     }
-    
+
     return checkCategoryAvailability(
       notaries,
       selectedLocation.province,
@@ -429,14 +530,30 @@ const UserHome = () => {
 
             {/* Region Search */}
             <div className="rounded-2xl bg-brand-surface dark:bg-brand-dark shadow-sm border border-brand-muted/30 dark:border-brand-light/10 p-6">
-              <h3 className="text-lg sm:text-xl font-bold text-brand-dark dark:text-brand-light mb-2">
-                Cari Berdasarkan Lokasi
-              </h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg sm:text-xl font-bold text-brand-dark dark:text-brand-light mb-2">
+                  Cari Berdasarkan Lokasi
+                </h3>
+                <button
+                  type="button"
+                  onClick={handleGetCurrentLocation}
+                  disabled={isGettingLocation}
+                  className="p-2 rounded-lg bg-brand-primary/10 dark:bg-brand-primary/20 hover:bg-brand-primary/20 dark:hover:bg-brand-primary/30 text-brand-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                  title="Gunakan lokasi saat ini"
+                  aria-label="Gunakan lokasi saat ini"
+                >
+                  {isGettingLocation ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <Navigation size={20} />
+                  )}
+                </button>
+              </div>
               <p className="text-sm text-brand-muted dark:text-brand-light/70 mb-4">
                 Pilih provinsi, kota/kabupaten, dan kecamatan (opsional) untuk menemukan notaris di wilayah Anda
               </p>
-              <RegionSearchBar 
-                onSearch={handleRegionSearch} 
+              <RegionSearchBar
+                onSearch={handleRegionSearch}
                 onLocationChange={handleLocationChange}
                 isSearching={isSearching}
               />
@@ -457,22 +574,22 @@ const UserHome = () => {
           {/* Right: Categories Grid or Notary Results */}
           <div className="lg:w-1/2 w-full">
             {showCategoryGrid ? (
-            <div className="rounded-2xl bg-brand-surface dark:bg-brand-dark shadow-sm border border-brand-muted/30 dark:border-brand-light/10 p-6 h-full flex flex-col">
+              <div className="rounded-2xl bg-brand-surface dark:bg-brand-dark shadow-sm border border-brand-muted/30 dark:border-brand-light/10 p-6 h-full flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg sm:text-xl font-bold text-brand-dark dark:text-brand-light">
-                Kategori Layanan
-              </h3>
+                    Kategori Layanan
+                  </h3>
                 </div>
                 {!isLocationSelected ? (
                   <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center">
                     <MapPin size={64} className="text-brand-muted dark:text-brand-light/30 mb-4" />
                     <h4 className="text-lg font-semibold text-brand-dark dark:text-brand-light mb-2">
-                      {selectedProvince && selectedRegency 
+                      {selectedProvince && selectedRegency
                         ? 'Klik "Cari Notaris" untuk Melanjutkan'
                         : 'Pilih Lokasi Terlebih Dahulu'}
                     </h4>
                     <p className="text-sm text-brand-muted dark:text-brand-light/70 max-w-sm">
-                      {selectedProvince && selectedRegency 
+                      {selectedProvince && selectedRegency
                         ? 'Silakan klik tombol "Cari Notaris" di form pencarian lokasi untuk melihat kategori layanan yang tersedia.'
                         : 'Silakan pilih provinsi dan kota/kabupaten di form pencarian lokasi, lalu klik tombol "Cari Notaris" untuk melihat kategori layanan yang tersedia.'}
                     </p>
@@ -486,7 +603,7 @@ const UserHome = () => {
                     )}
                   </div>
                 ) : (
-              <div className="flex-1 overflow-y-auto pr-2 pt-2 z-10">
+                  <div className="flex-1 overflow-y-auto pr-2 pt-2 z-10">
                     <div className="mb-4 rounded-lg bg-brand-primary/5 dark:bg-brand-primary/10 border border-brand-primary/20 dark:border-brand-primary/30 px-4 py-3">
                       <p className="text-xs text-brand-dark dark:text-brand-light/80 mb-1">
                         <span className="font-semibold">Lokasi dipilih:</span>
@@ -496,17 +613,17 @@ const UserHome = () => {
                         {selectedLocation.district && ` → ${selectedLocation.district.name}`}
                       </p>
                     </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4">
                       {categories.map((item) => {
                         const isAvailable = isCategoryAvailable(item.title);
                         const isUnavailable = isLocationSelected && !isAvailable;
-                        
+
                         return (
-                    <CategoryCard
-                      key={item.title}
-                      icon={item.icon}
-                      title={item.title}
-                      desc={item.desc}
+                          <CategoryCard
+                            key={item.title}
+                            icon={item.icon}
+                            title={item.title}
+                            desc={item.desc}
                             onClick={() => handleCategoryClick(item.title)}
                             isSelected={selectedCategory === item.title}
                             disabled={isUnavailable}
@@ -606,85 +723,84 @@ const UserHome = () => {
                               onClick={() => handleNotaryCardClick(notary)}
                               className="rounded-2xl bg-white dark:bg-brand-dark border border-brand-muted/20 dark:border-brand-light/10 p-5 hover:shadow-xl hover:-translate-y-1 transition-all relative cursor-pointer"
                             >
-                          {/* Profile Section */}
-                          <div className="flex gap-4 mb-4">
-                            {/* Profile Picture */}
-                            <div className="flex-shrink-0 relative">
-                              <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-brand-primary/20 to-brand-primary/40 dark:from-brand-primary/30 dark:to-brand-primary/50 flex items-center justify-center overflow-hidden shadow-sm">
-                                <Building2 size={36} className="text-brand-primary" />
-                              </div>
-                              {notary.verified && (
-                                <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-brand-primary flex items-center justify-center border-2 border-white dark:border-brand-dark shadow-sm">
-                                  <CheckCircle size={14} className="text-white fill-white" />
+                              {/* Profile Section */}
+                              <div className="flex gap-4 mb-4">
+                                {/* Profile Picture */}
+                                <div className="flex-shrink-0 relative">
+                                  <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-brand-primary/20 to-brand-primary/40 dark:from-brand-primary/30 dark:to-brand-primary/50 flex items-center justify-center overflow-hidden shadow-sm">
+                                    <Building2 size={36} className="text-brand-primary" />
+                                  </div>
+                                  {notary.verified && (
+                                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-brand-primary flex items-center justify-center border-2 border-white dark:border-brand-dark shadow-sm">
+                                      <CheckCircle size={14} className="text-white fill-white" />
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
 
-                            {/* Name and Info */}
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-base font-bold text-brand-dark dark:text-brand-light mb-1 line-clamp-1">
-                                {notary.name}
-                              </h4>
-                              <p className="text-xs font-medium text-brand-primary mb-2 line-clamp-1">
-                                {notary.categories[0] || 'Notaris'}
-                              </p>
-                              
-                              {/* Experience and Rating */}
-                              <div className="flex items-center gap-4 text-xs mt-3">
-                                <div className="flex items-center gap-1.5">
-                                  <Briefcase size={14} className="text-brand-muted dark:text-brand-light/60" />
-                                  <span className="text-brand-muted dark:text-brand-light/70 font-medium">{notary.experience}</span>
+                                {/* Name and Info */}
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-base font-bold text-brand-dark dark:text-brand-light mb-1 line-clamp-1">
+                                    {notary.name}
+                                  </h4>
+                                  <p className="text-xs font-medium text-brand-primary mb-2 line-clamp-1">
+                                    {notary.categories[0] || 'Notaris'}
+                                  </p>
+
+                                  {/* Experience and Rating */}
+                                  <div className="flex items-center gap-4 text-xs mt-3">
+                                    <div className="flex items-center gap-1.5">
+                                      <Briefcase size={14} className="text-brand-muted dark:text-brand-light/60" />
+                                      <span className="text-brand-muted dark:text-brand-light/70 font-medium">{notary.experience}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <ThumbsUp size={14} className="text-brand-primary fill-brand-primary" />
+                                      <span className="font-bold text-brand-dark dark:text-brand-light">
+                                        {Math.round(notary.rating * 20)}%
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                  <ThumbsUp size={14} className="text-brand-primary fill-brand-primary" />
-                                  <span className="font-bold text-brand-dark dark:text-brand-light">
-                                    {Math.round(notary.rating * 20)}%
+                              </div>
+
+                              {/* Location */}
+                              <div className="flex items-start gap-2 mb-4 text-xs bg-brand-muted/5 dark:bg-brand-muted/10 rounded-lg p-2.5">
+                                <MapPin size={14} className="text-brand-muted dark:text-brand-light/60 mt-0.5 flex-shrink-0" />
+                                <span className="text-brand-muted dark:text-brand-light/70 line-clamp-2 leading-relaxed">
+                                  {notary.address}, {notary.district.name}, {notary.regency.name}
+                                </span>
+                              </div>
+
+                              {/* Categories Tags */}
+                              <div className="flex flex-wrap gap-1.5 mb-4">
+                                {notary.categories.slice(0, 2).map((category) => (
+                                  <span
+                                    key={category}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${category === selectedCategory
+                                        ? 'bg-brand-primary text-white shadow-sm'
+                                        : 'bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-primary border border-brand-primary/20'
+                                      }`}
+                                  >
+                                    {category}
                                   </span>
-                                </div>
+                                ))}
+                                {notary.categories.length > 2 && (
+                                  <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-brand-muted/20 dark:bg-brand-muted/30 text-brand-muted dark:text-brand-light/70 border border-brand-muted/30">
+                                    +{notary.categories.length - 2}
+                                  </span>
+                                )}
                               </div>
-                            </div>
-                          </div>
 
-                          {/* Location */}
-                          <div className="flex items-start gap-2 mb-4 text-xs bg-brand-muted/5 dark:bg-brand-muted/10 rounded-lg p-2.5">
-                            <MapPin size={14} className="text-brand-muted dark:text-brand-light/60 mt-0.5 flex-shrink-0" />
-                            <span className="text-brand-muted dark:text-brand-light/70 line-clamp-2 leading-relaxed">
-                              {notary.address}, {notary.district.name}, {notary.regency.name}
-                            </span>
-                          </div>
-
-                          {/* Categories Tags */}
-                          <div className="flex flex-wrap gap-1.5 mb-4">
-                            {notary.categories.slice(0, 2).map((category) => (
-                              <span
-                                key={category}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                                  category === selectedCategory
-                                    ? 'bg-brand-primary text-white shadow-sm'
-                                    : 'bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-primary border border-brand-primary/20'
-                                }`}
-                              >
-                                {category}
-                              </span>
-                            ))}
-                            {notary.categories.length > 2 && (
-                              <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-brand-muted/20 dark:bg-brand-muted/30 text-brand-muted dark:text-brand-light/70 border border-brand-muted/30">
-                                +{notary.categories.length - 2}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Action Button */}
-                          <div className="pt-4 border-t border-brand-muted/20" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => handleConsultationClick(notary)}
-                              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-primary hover:bg-brand-primary/90 active:bg-brand-primary/95 text-white font-bold text-sm transition-all shadow-md hover:shadow-lg"
-                            >
-                              <MessageCircle size={18} className="fill-white" />
-                              Konsultasi
-                            </button>
-                          </div>
+                              {/* Action Button */}
+                              <div className="pt-4 border-t border-brand-muted/20" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleConsultationClick(notary)}
+                                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-primary hover:bg-brand-primary/90 active:bg-brand-primary/95 text-white font-bold text-sm transition-all shadow-md hover:shadow-lg"
+                                >
+                                  <MessageCircle size={18} className="fill-white" />
+                                  Konsultasi
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -737,9 +853,8 @@ const UserHome = () => {
 
           {/* Content Container */}
           <div
-            className={`${
-              isContentExpanded ? 'block' : 'hidden'
-            } lg:block mt-4 lg:mt-0 rounded-2xl bg-brand-surface dark:bg-brand-dark border border-brand-muted/30 dark:border-brand-light/10 shadow-sm p-6 sm:p-8 lg:p-10`}
+            className={`${isContentExpanded ? 'block' : 'hidden'
+              } lg:block mt-4 lg:mt-0 rounded-2xl bg-brand-surface dark:bg-brand-dark border border-brand-muted/30 dark:border-brand-light/10 shadow-sm p-6 sm:p-8 lg:p-10`}
           >
             <div className="prose prose-sm sm:prose-sm lg:prose-base max-w-none dark:prose-invert">
               {/* Main Title */}
@@ -865,6 +980,14 @@ const UserHome = () => {
             </div>
           </div>
         </div>
+        {/* Alert Modal */}
+        <AlertModal
+          isOpen={alertModal.isOpen}
+          onClose={() => setAlertModal({ ...alertModal, isOpen: false })}
+          type={alertModal.type}
+          title={alertModal.title}
+          message={alertModal.message}
+        />
       </div>
 
       {/* Login Modal */}

@@ -6,6 +6,7 @@ import NavbarAdmin from './components/NavbarAdmin'
 import FooterUser from './components/user/FooterUser'
 import UserHome from './pages/user/UserHome'
 import ActiveConsultationPage from './pages/user/ActiveConsultationPage'
+import ConsultationDetailPage from './pages/user/ConsultationDetailPage'
 import ConsultationPage from './pages/user/ConsultationPage'
 import NotaryLogin from './pages/notary/NotaryLogin'
 import AdminLogin from './pages/admin/AdminLogin'
@@ -26,6 +27,14 @@ function App() {
         element={
           <Layout NavbarComponent={NavbarUser} FooterComponent={FooterUser}>
             <ActiveConsultationPage />
+          </Layout>
+        }
+      />
+      <Route
+        path="/konsultasi-aktif/:consultationId"
+        element={
+          <Layout NavbarComponent={NavbarUser}>
+            <ConsultationDetailPage />
           </Layout>
         }
       />

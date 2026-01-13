@@ -1,19 +1,8 @@
 import PropTypes from 'prop-types';
-import { Calendar, Clock, MapPin, ChevronRight, Building2, FileText } from 'lucide-react';
+import { Calendar, Clock, MapPin, ChevronRight, Building2, MessageCircle } from 'lucide-react';
+import StatusBadge from '../common/StatusBadge';
 
-const ConsultationCard = ({ consultation, onViewDetails }) => {
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'bg-status-success/10 text-status-success border-status-success/20';
-      case 'CLOSED':
-        return 'bg-brand-muted/20 text-brand-muted dark:text-brand-light/70 border-brand-muted/30';
-      case 'PENDING':
-        return 'bg-status-warning/10 text-status-warning border-status-warning/20';
-      default:
-        return 'bg-brand-muted/20 text-brand-muted border-brand-muted/30';
-    }
-  };
+const ConsultationCard = ({ consultation, onViewDetails, onChatClick }) => {
 
   return (
     <div className="relative bg-white dark:bg-brand-dark rounded-lg shadow-sm border border-brand-muted/20 dark:border-brand-light/10 p-4 hover:shadow-md transition-shadow">
@@ -48,9 +37,9 @@ const ConsultationCard = ({ consultation, onViewDetails }) => {
                   {consultation.notarySpecialization}
                 </p>
               </div>
-              <div className="flex items-center gap-1.5 ml-3">
+              {/* <div className="flex items-center gap-1.5 ml-3">
                 <FileText size={14} className="text-status-danger" />
-              </div>
+              </div> */}
             </div>
 
             {/* Date and Time */}
@@ -74,19 +63,32 @@ const ConsultationCard = ({ consultation, onViewDetails }) => {
         {/* Right: Status and Action */}
         <div className="flex items-center justify-between sm:justify-end gap-3 sm:flex-col sm:items-end">
           {/* Status Badge */}
-          <div className={`px-2.5 py-1 rounded-md border text-[10px] font-semibold uppercase ${getStatusColor(consultation.status)}`}>
-            {consultation.status}
-          </div>
+          <StatusBadge status={consultation.status} size="sm" />
 
-          {/* View Details Button */}
-          <button
-            type="button"
-            onClick={() => onViewDetails(consultation.id)}
-            className="flex items-center gap-1 text-brand-primary hover:opacity-80 transition text-xs font-semibold"
-          >
-            Lebih Lanjut
-            <ChevronRight size={14} />
-          </button>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            {/* Chat Button - Only show for ACTIVE consultations */}
+            {consultation.status === 'ACTIVE' && onChatClick && (
+              <button
+                type="button"
+                onClick={() => onChatClick(consultation.id)}
+                className="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-primary hover:bg-brand-primary/90 text-white transition shadow-sm hover:shadow-md"
+                title="Buka Chat"
+              >
+                <MessageCircle size={16} />
+              </button>
+            )}
+            
+            {/* View Details Button */}
+            <button
+              type="button"
+              onClick={() => onViewDetails(consultation.id)}
+              className="flex items-center gap-1 text-brand-primary hover:opacity-80 transition text-xs font-semibold"
+            >
+              Lebih Lanjut
+              <ChevronRight size={14} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -110,7 +112,8 @@ ConsultationCard.propTypes = {
     location: PropTypes.string.isRequired,
     status: PropTypes.oneOf(['ACTIVE', 'CLOSED', 'PENDING']).isRequired
   }).isRequired,
-  onViewDetails: PropTypes.func.isRequired
+  onViewDetails: PropTypes.func.isRequired,
+  onChatClick: PropTypes.func
 };
 
 export default ConsultationCard;

@@ -1,8 +1,9 @@
 import PropTypes from 'prop-types';
 import { useState } from 'react';
-import { X, Stethoscope, MessageCircle, Mail, Phone } from 'lucide-react';
+import { Stethoscope, MessageCircle, Mail, Phone } from 'lucide-react';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { login } from '../../store/authSlice';
+import Modal from '../common/Modal';
 
 const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
   const dispatch = useAppDispatch();
@@ -37,34 +38,8 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
     handleLogin();
   };
 
-  if (!isOpen) return null;
-
   return (
-    <>
-      {/* Backdrop with animation */}
-      <div
-        className="fixed inset-0 bg-black/50 dark:bg-black/70 z-50 animate-fadeIn"
-        onClick={onClose}
-      />
-      
-      {/* Modal with animation */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div
-          className="bg-white dark:bg-brand-dark rounded-2xl shadow-2xl w-full max-w-md pointer-events-auto animate-modalSlideIn"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Close Button */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-full hover:bg-brand-muted/20 dark:hover:bg-brand-light/10 transition-colors"
-            aria-label="Close"
-          >
-            <X size={20} className="text-brand-muted dark:text-brand-light/70" />
-          </button>
-
-          {/* Modal Content */}
-          <div className="p-6 sm:p-8">
+    <Modal isOpen={isOpen} onClose={onClose} size="md">
             {/* Icon */}
             <div className="flex justify-center mb-6">
               <div className="w-16 h-16 rounded-full bg-brand-primary/10 dark:bg-brand-primary/20 flex items-center justify-center">
@@ -154,11 +129,8 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
               <a href="#" className="text-brand-primary hover:underline">
                 Kebijakan Privasi NotaryID
               </a>
-            </p>
-          </div>
-        </div>
-      </div>
-    </>
+      </p>
+    </Modal>
   );
 };
 

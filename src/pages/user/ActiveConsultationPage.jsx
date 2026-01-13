@@ -33,7 +33,7 @@ const ActiveConsultationPage = () => {
   const hasActiveConsultations = activeConsultations.length > 0;
 
   return (
-    <div className="min-h-screen bg-brand-muted/20 dark:bg-brand-dark/50 py-6 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-brand-light dark:bg-brand-dark/50 py-6 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -53,8 +53,12 @@ const ActiveConsultationPage = () => {
                 key={consultation.id}
                 consultation={consultation}
                 onViewDetails={(id) => {
-                  // TODO: Navigate to chat/detail page
-                  console.log('View details for active consultation:', id);
+                  // Navigate to consultation detail page
+                  navigate(`/konsultasi-aktif/${id}`);
+                }}
+                onChatClick={(id) => {
+                  // Navigate to chat room
+                  navigate(`/konsultasi-aktif/${id}`);
                 }}
               />
             ))}

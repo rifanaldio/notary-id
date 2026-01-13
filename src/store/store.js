@@ -4,6 +4,7 @@ import regionReducer from './regionSlice';
 import notaryReducer from './notarySlice';
 import authReducer from './authSlice';
 import consultationReducer from './consultationSlice';
+import chatReducer from './chatSlice';
 
 const store = configureStore({
   reducer: {
@@ -11,7 +12,8 @@ const store = configureStore({
     region: regionReducer,
     notary: notaryReducer,
     auth: authReducer,
-    consultation: consultationReducer
+    consultation: consultationReducer,
+    chat: chatReducer
   },
   devTools: true
 });

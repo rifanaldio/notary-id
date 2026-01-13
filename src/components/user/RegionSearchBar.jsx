@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, ChevronDown, Loader2 } from 'lucide-react';
+import { Search, MapPin, ChevronDown, Loader2, Navigation } from 'lucide-react';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import {
@@ -31,12 +31,12 @@ const RegionSearchBar = ({ onSearch, onLocationChange, isSearching }) => {
   const provinceRef = useRef(null);
   const regencyRef = useRef(null);
   const districtRef = useRef(null);
-  
+
   // Track previous values untuk detect perubahan
   const prevProvinceRef = useRef(null);
   const prevRegencyRef = useRef(null);
   const prevDistrictRef = useRef(null);
-  
+
   // Detect perubahan di form
   useEffect(() => {
     if (
@@ -46,7 +46,7 @@ const RegionSearchBar = ({ onSearch, onLocationChange, isSearching }) => {
     ) {
       onLocationChange?.();
     }
-    
+
     prevProvinceRef.current = selectedProvince;
     prevRegencyRef.current = selectedRegency;
     prevDistrictRef.current = selectedDistrict;
@@ -127,8 +127,98 @@ const RegionSearchBar = ({ onSearch, onLocationChange, isSearching }) => {
 
   const isSearchDisabled = !selectedProvince || !selectedRegency;
 
+  // Reverse geocoding function to get location from coordinates
+  const reverseGeocode = async (latitude, longitude) => {
+    try {
+      // Using Nominatim (OpenStreetMap) for reverse geocoding
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1&accept-language=id`,
+        {
+          headers: {
+            'User-Agent': 'NotaryID App' // Required by Nominatim
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to get location');
+      }
+
+      const data = await response.json();
+      return data.address;
+    } catch (error) {
+      console.error('Reverse geocoding error:', error);
+      throw error;
+    }
+  };
+
+  // Find matching province, regency, and district from address
+  const findMatchingRegion = async (address) => {
+    const provinceName = address.state || address.province || '';
+    const regencyName = address.city || address.town || address.county || '';
+    const districtName = address.suburb || address.village || address.neighbourhood || '';
+
+    // Find province
+    const matchedProvince = provinces.find(p =>
+      p.name.toLowerCase().includes(provinceName.toLowerCase()) ||
+      provinceName.toLowerCase().includes(p.name.toLowerCase())
+    );
+
+    if (!matchedProvince) {
+      return { success: false, message: 'Provinsi tidak ditemukan' };
+    }
+
+    // Set province first
+    dispatch(setSelectedProvince(matchedProvince));
+
+    // Fetch regencies if not already loaded
+    if (!regencies[matchedProvince.id]) {
+      await dispatch(fetchRegencies(matchedProvince.id));
+    }
+
+    // Wait a bit for state to update
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Get updated regencies from state
+    const currentState = useAppSelector.getState?.() || { region: { regencies: {} } };
+    const availableRegencies = currentState.region?.regencies[matchedProvince.id] || regencies[matchedProvince.id] || [];
+
+    // Find regency
+    const matchedRegency = availableRegencies.find(r =>
+      r.name.toLowerCase().includes(regencyName.toLowerCase()) ||
+      regencyName.toLowerCase().includes(r.name.toLowerCase())
+    );
+
+    if (matchedRegency) {
+      dispatch(setSelectedRegency(matchedRegency));
+
+      // Fetch districts if not already loaded
+      if (!districts[matchedRegency.id]) {
+        await dispatch(fetchDistricts(matchedRegency.id));
+      }
+
+      // Wait a bit for state to update
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Get updated districts from state
+      const currentDistricts = currentState.region?.districts[matchedRegency.id] || districts[matchedRegency.id] || [];
+      const matchedDistrict = currentDistricts.find(d =>
+        d.name.toLowerCase().includes(districtName.toLowerCase()) ||
+        districtName.toLowerCase().includes(d.name.toLowerCase())
+      );
+
+      if (matchedDistrict) {
+        dispatch(setSelectedDistrict(matchedDistrict));
+      }
+
+      return { success: true, province: matchedProvince, regency: matchedRegency, district: matchedDistrict };
+    }
+
+    return { success: true, province: matchedProvince, regency: null };
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative">
       <div className="flex flex-col gap-3">
         {/* Provinsi Dropdown */}
         <div className="w-full relative" ref={provinceRef}>
@@ -169,11 +259,10 @@ const RegionSearchBar = ({ onSearch, onLocationChange, isSearching }) => {
                   key={province.id}
                   type="button"
                   onClick={() => handleProvinceSelect(province)}
-                  className={`w-full px-4 py-3 text-left hover:bg-brand-primary/10 dark:hover:bg-brand-primary/20 transition ${
-                    selectedProvince?.id === province.id
+                  className={`w-full px-4 py-3 text-left hover:bg-brand-primary/10 dark:hover:bg-brand-primary/20 transition ${selectedProvince?.id === province.id
                       ? 'bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-primary font-semibold'
                       : 'text-brand-dark dark:text-brand-light'
-                  }`}
+                    }`}
                 >
                   {province.name}
                 </button>
@@ -226,11 +315,10 @@ const RegionSearchBar = ({ onSearch, onLocationChange, isSearching }) => {
                   key={regency.id}
                   type="button"
                   onClick={() => handleRegencySelect(regency)}
-                  className={`w-full px-4 py-3 text-left hover:bg-brand-primary/10 dark:hover:bg-brand-primary/20 transition ${
-                    selectedRegency?.id === regency.id
+                  className={`w-full px-4 py-3 text-left hover:bg-brand-primary/10 dark:hover:bg-brand-primary/20 transition ${selectedRegency?.id === regency.id
                       ? 'bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-primary font-semibold'
                       : 'text-brand-dark dark:text-brand-light'
-                  }`}
+                    }`}
                 >
                   {regency.name}
                 </button>
@@ -283,11 +371,10 @@ const RegionSearchBar = ({ onSearch, onLocationChange, isSearching }) => {
                   key={district.id}
                   type="button"
                   onClick={() => handleDistrictSelect(district)}
-                  className={`w-full px-4 py-3 text-left hover:bg-brand-primary/10 dark:hover:bg-brand-primary/20 transition ${
-                    selectedDistrict?.id === district.id
+                  className={`w-full px-4 py-3 text-left hover:bg-brand-primary/10 dark:hover:bg-brand-primary/20 transition ${selectedDistrict?.id === district.id
                       ? 'bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-primary font-semibold'
                       : 'text-brand-dark dark:text-brand-light'
-                  }`}
+                    }`}
                 >
                   {district.name}
                 </button>
