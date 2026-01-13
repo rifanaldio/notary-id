@@ -9,6 +9,8 @@ import ActiveConsultationPage from './pages/user/ActiveConsultationPage'
 import ConsultationDetailPage from './pages/user/ConsultationDetailPage'
 import ConsultationPage from './pages/user/ConsultationPage'
 import NotaryLogin from './pages/notary/NotaryLogin'
+import NotaryRegistration from './pages/notary/NotaryRegistration'
+import RegistrationConfirmation from './pages/notary/RegistrationConfirmation'
 import AdminLogin from './pages/admin/AdminLogin'
 
 function App() {
@@ -51,6 +53,22 @@ function App() {
         element={
           <Layout NavbarComponent={NavbarNotary}>
             <NotaryLogin />
+          </Layout>
+        }
+      />
+      <Route
+        path="/notary/register"
+        element={
+          <Layout NavbarComponent={NavbarNotary}>
+            <NotaryRegistration />
+          </Layout>
+        }
+      />
+      <Route
+        path="/notary/register/confirmation"
+        element={
+          <Layout NavbarComponent={NavbarNotary}>
+            <RegistrationConfirmation />
           </Layout>
         }
       />

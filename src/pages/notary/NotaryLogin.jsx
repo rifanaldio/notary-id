@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Mail, Lock } from 'lucide-react';
 
 const NotaryLogin = () => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -64,6 +66,20 @@ const NotaryLogin = () => {
               Masuk
             </button>
           </form>
+
+          {/* Register Link */}
+          <div className="mt-6 pt-6 border-t border-brand-muted/20 dark:border-brand-light/10">
+            <p className="text-sm text-center text-brand-muted dark:text-brand-light/70 mb-4">
+              Belum punya akun?
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/notary/register')}
+              className="w-full rounded-xl border-2 border-brand-primary px-6 py-3 text-brand-primary font-semibold hover:bg-brand-primary/5 dark:hover:bg-brand-primary/10 transition"
+            >
+              Daftar sebagai Notaris
+            </button>
+          </div>
         </div>
       </div>
     </div>
